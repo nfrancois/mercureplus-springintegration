@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http" xmlns:int-twitter="http://www.springframework.org/schema/integration/twitter"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/http http://www.springframework.org/schema/integration/http/spring-integration-http-2.1.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-2.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+		http://www.springframework.org/schema/integration/twitter http://www.springframework.org/schema/integration/twitter/spring-integration-twitter-2.1.xsd">
+
+
+	<int:inbound-channel-adapter channel="pollChannel" expression="true" auto-startup="true" id="poller">
+		<int:poller fixed-rate="${delay}" />
+	</int:inbound-channel-adapter>
+
+	<int-http:outbound-gateway url="https://www.googleapis.com/plus/v1/people/${me}/activities/public?key=${key.gplus}"
+		http-method="GET" request-channel="pollChannel" reply-channel="toJsonChannel" expected-response-type="java.lang.String" />
+
+	<int:json-to-object-transformer input-channel="toJsonChannel" output-channel="googlePlusReponseChannel"
+		type="nfrancois.mercureplus.model.gplus.ActivityFeed" id="jsonTransformer" />
+
+	<int:service-activator ref="gPLusResponseComponent" input-channel="googlePlusReponseChannel" output-channel="activitiesSplitterChannel" />
+
+	<int:splitter id="activitiesSplitter" input-channel="activitiesSplitterChannel" output-channel="activityToMessageChannel" />
+
+	<int:service-activator ref="activityToMessageComponent" input-channel="activityToMessageChannel" output-channel="specificMessageChannel" />
+
+	<int:service-activator ref="tweetMessageComponent" input-channel="specificMessageChannel" output-channel="tweetMessageChannel" />
+
+	<int-twitter:outbound-channel-adapter twitter-template="twitterTemplate" channel="tweetMessageChannel"/>
+
+	<int:channel id="tweetMessageChannel" />
+	<int:publish-subscribe-channel id="specificMessageChannel" />
+
+</beans>
